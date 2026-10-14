@@ -1,0 +1,7 @@
+﻿[
+  { "id": "adhd", "name": "ADHD", "enabledByDefault": true, "sortOrder": 1 },
+  { "id": "bipolar", "name": "Bipolar disorder", "enabledByDefault": true, "sortOrder": 2 },
+  { "id": "anxiety", "name": "Anxiety", "enabledByDefault": true, "sortOrder": 3 },
+  { "id": "schizophrenia", "name": "Schizophrenia", "enabledByDefault": true, "sortOrder": 4 },
+  { "id": "depression", "name": "Depression", "enabledByDefault": true, "sortOrder": 5 }
+]
