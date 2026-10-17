@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Send enums (InputType, Polarity) as readable strings instead of numbers.
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
+builder.Services.AddScoped<AveragesService>();
 builder.Services.AddOpenApi();
 builder.Services.AddDbContext<MoodDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Default")));
@@ -228,6 +229,148 @@ app.MapDelete("/factors/{id:int}", async (int id, MoodDbContext db) =>
     return deleted == 0 ? Results.NotFound() : Results.NoContent();
 });
 
+// ---- Medications ----
+// Name is free text; dose unit and frequency come from fixed dropdown lists (see /medications/options).
+// Changing dose, unit or frequency closes the current regimen row and opens a new one, so history is kept.
+app.MapGet("/medications/options", () => new
+{
+    Units = Enum.GetNames<DoseUnit>(),
+    Frequencies = Enum.GetNames<DoseFrequency>(),
+    Statuses = Enum.GetNames<MedicationStatus>(),
+});
+
+app.MapGet("/medications", async (MoodDbContext db, MedicationStatus? status) =>
+{
+    var query = db.Medications.Include(m => m.Regimens).AsQueryable();
+    if (status is not null) query = query.Where(m => m.Status == status);
+    var meds = await query.OrderBy(m => m.Name).ToListAsync();
+    return meds.Select(MedicationResponse.From).ToList();
+});
+
+app.MapGet("/medications/{id:int}", async (int id, MoodDbContext db) =>
+{
+    var med = await db.Medications.Include(m => m.Regimens).FirstOrDefaultAsync(m => m.Id == id);
+    return med is null ? Results.NotFound() : Results.Ok(MedicationResponse.From(med));
+});
+
+app.MapPost("/medications", async (MedicationRequest req, MoodDbContext db) =>
+{
+    var error = req.Validate(requireAll: true);
+    if (error is not null) return Results.BadRequest(error);
+    var name = req.Name!.Trim();
+    if (await db.Medications.AnyAsync(m => m.Name == name))
+        return Results.Conflict($"Medication '{name}' already exists.");
+
+    var med = new Medication { Name = name };
+    med.Regimens.Add(new MedicationRegimen { Dose = req.Dose!.Value, Unit = req.Unit!.Value, Frequency = req.Frequency!.Value });
+    db.Medications.Add(med);
+    await db.SaveChangesAsync();
+    return Results.Created($"/medications/{med.Id}", MedicationResponse.From(med));
+});
+
+// Rename and/or change dose, unit, frequency. Send only what changes; a new history row is added if dose/unit/frequency differ.
+app.MapPut("/medications/{id:int}", async (int id, MedicationRequest req, MoodDbContext db) =>
+{
+    var error = req.Validate(requireAll: false);
+    if (error is not null) return Results.BadRequest(error);
+    var med = await db.Medications.Include(m => m.Regimens).FirstOrDefaultAsync(m => m.Id == id);
+    if (med is null) return Results.NotFound();
+
+    if (req.Name is not null)
+    {
+        var name = req.Name.Trim();
+        if (await db.Medications.AnyAsync(m => m.Name == name && m.Id != id))
+            return Results.Conflict($"Medication '{name}' already exists.");
+        med.Name = name;
+    }
+
+    var current = med.Regimens.FirstOrDefault(r => r.EndedAt == null);
+    var dose = req.Dose ?? current?.Dose ?? 0;
+    var unit = req.Unit ?? current?.Unit ?? DoseUnit.Mg;
+    var freq = req.Frequency ?? current?.Frequency ?? DoseFrequency.OnceDaily;
+    if (current is null || current.Dose != dose || current.Unit != unit || current.Frequency != freq)
+    {
+        var now = DateTime.UtcNow;
+        if (current is not null) current.EndedAt = now;
+        med.Regimens.Add(new MedicationRegimen { Dose = dose, Unit = unit, Frequency = freq, StartedAt = now });
+    }
+    await db.SaveChangesAsync();
+    return Results.Ok(MedicationResponse.From(med));
+});
+
+// Retire a medication (stop taking it) or bring it back. Nothing is deleted; the open regimen is closed on retire
+// and reopened on restore.
+app.MapPut("/medications/{id:int}/status", async (int id, MedicationStatusRequest req, MoodDbContext db) =>
+{
+    var med = await db.Medications.Include(m => m.Regimens).FirstOrDefaultAsync(m => m.Id == id);
+    if (med is null) return Results.NotFound();
+    if (med.Status == req.Status) return Results.Ok(MedicationResponse.From(med));
+
+    var now = DateTime.UtcNow;
+    med.Status = req.Status;
+    if (req.Status == MedicationStatus.Retired)
+    {
+        med.RetiredAt = now;
+        foreach (var r in med.Regimens.Where(r => r.EndedAt == null)) r.EndedAt = now;
+    }
+    else
+    {
+        med.RetiredAt = null;
+        var last = med.Regimens.OrderByDescending(r => r.StartedAt).First();
+        med.Regimens.Add(new MedicationRegimen { Dose = last.Dose, Unit = last.Unit, Frequency = last.Frequency, StartedAt = now });
+    }
+    await db.SaveChangesAsync();
+    return Results.Ok(MedicationResponse.From(med));
+});
+
+// Every dose/frequency this medication has had, newest first.
+app.MapGet("/medications/{id:int}/history", async (int id, MoodDbContext db) =>
+{
+    if (!await db.Medications.AnyAsync(m => m.Id == id)) return Results.NotFound();
+    var rows = await db.MedicationRegimens.Where(r => r.MedicationId == id).ToListAsync();
+    return Results.Ok(rows.OrderByDescending(r => r.StartedAt).Select(RegimenResponse.From).ToList());
+});
+
+// Daily log. GET one date (default today) or a range; PUT records/updates one medication for one date.
+app.MapGet("/medication-log", async (MoodDbContext db, DateOnly? date, DateOnly? from, DateOnly? to) =>
+{
+    var query = db.MedicationLogs.Include(l => l.Medication).AsQueryable();
+    if (from is not null || to is not null)
+    {
+        if (from is not null) query = query.Where(l => l.Date >= from);
+        if (to is not null) query = query.Where(l => l.Date <= to);
+    }
+    else
+    {
+        var day = date ?? DateOnly.FromDateTime(DateTime.Now);
+        query = query.Where(l => l.Date == day);
+    }
+    var logs = await query.OrderByDescending(l => l.Date).ThenBy(l => l.Medication!.Name).ToListAsync();
+    return logs.Select(l => new MedicationLogResponse(l.Id, l.MedicationId, l.Medication!.Name, l.Date, l.Taken, l.RegimenId, l.Notes)).ToList();
+});
+
+app.MapPut("/medication-log/{date}/{medicationId:int}", async (DateOnly date, int medicationId, MedicationLogRequest req, MoodDbContext db) =>
+{
+    var med = await db.Medications.Include(m => m.Regimens).FirstOrDefaultAsync(m => m.Id == medicationId);
+    if (med is null) return Results.NotFound();
+
+    var log = await db.MedicationLogs.FirstOrDefaultAsync(l => l.MedicationId == medicationId && l.Date == date);
+    if (log is null)
+    {
+        // Pin the regimen in effect that day (falls back to the earliest one for dates before it began).
+        var at = date.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Local).ToUniversalTime();
+        var regimen = med.Regimens.Where(r => r.StartedAt <= at && (r.EndedAt == null || r.EndedAt > at))
+                          .OrderByDescending(r => r.StartedAt).FirstOrDefault()
+                      ?? med.Regimens.OrderBy(r => r.StartedAt).FirstOrDefault();
+        log = new MedicationLog { MedicationId = medicationId, Date = date, RegimenId = regimen?.Id };
+        db.MedicationLogs.Add(log);
+    }
+    log.Taken = req.Taken;
+    log.Notes = string.IsNullOrWhiteSpace(req.Notes) ? null : req.Notes.Trim();
+    await db.SaveChangesAsync();
+    return Results.Ok(new MedicationLogResponse(log.Id, med.Id, med.Name, log.Date, log.Taken, log.RegimenId, log.Notes));
+});
+
 // ---- Entries ----
 app.MapGet("/entries", async (MoodDbContext db, DateTime? from, DateTime? to) =>
 {
@@ -296,6 +439,21 @@ app.MapDelete("/entries/{id:int}", async (int id, MoodDbContext db) =>
     return deleted == 0 ? Results.NotFound() : Results.NoContent();
 });
 
+// ---- Averages ----
+// Per-factor summary of the last 7, 30 or 90 days, or 0 for all time (the Angular "averages" page).
+app.MapGet("/averages/{days:int}", async (int days, AveragesService averages, CancellationToken ct) =>
+    AveragesRange.Allowed.Contains(days)
+        ? Results.Ok(await averages.GetAsync(days, ct))
+        : Results.BadRequest($"Days must be one of {string.Join(", ", AveragesRange.Allowed)} (0 = all time)."));
+
+// Same summary for a custom range, e.g. /averages?from=2026-10-01&to=2026-10-15 (both dates inclusive).
+app.MapGet("/averages", async (DateOnly? from, DateOnly? to, AveragesService averages, CancellationToken ct) =>
+{
+    if (from is null || to is null) return Results.BadRequest("Both 'from' and 'to' dates are required (yyyy-MM-dd).");
+    if (from > to) return Results.BadRequest("'from' must not be after 'to'.");
+    return Results.Ok(await averages.GetAsync(from.Value, to.Value, ct));
+});
+
 app.Run();
 
 // Starts tracking a catalog item: restores its archived factor (history intact) or creates a new one.
@@ -361,3 +519,29 @@ record CatalogItemResponse(
     Polarity Polarity, string? Pole, SafetyKind? SafetyKind, string[] Conditions, string[] RelatedIds,
     string? CrossRefNote, string? SourceNote, bool Tracked, int? FactorId);
 record EntryResponse(int Id, DateTime Timestamp, int Mood, string? Notes, List<FactorValueResponse> Factors);
+
+record MedicationRequest(string? Name, double? Dose, DoseUnit? Unit, DoseFrequency? Frequency)
+{
+    public string? Validate(bool requireAll)
+    {
+        if (requireAll && (string.IsNullOrWhiteSpace(Name) || Dose is null || Unit is null || Frequency is null))
+            return "Name, dose, unit and frequency are required.";
+        if (Name is not null && string.IsNullOrWhiteSpace(Name)) return "Name cannot be blank.";
+        if (Dose is { } d && (!double.IsFinite(d) || d <= 0)) return "Dose must be a number greater than 0.";
+        return null;
+    }
+}
+record MedicationStatusRequest(MedicationStatus Status);
+record MedicationLogRequest(MedicationTaken Taken, string? Notes);
+record RegimenResponse(int Id, double Dose, DoseUnit Unit, DoseFrequency Frequency, DateTime StartedAt, DateTime? EndedAt)
+{
+    public static RegimenResponse From(MedicationRegimen r) => new(r.Id, r.Dose, r.Unit, r.Frequency, r.StartedAt, r.EndedAt);
+}
+record MedicationResponse(int Id, string Name, MedicationStatus Status, DateTime CreatedAt, DateTime? RetiredAt, RegimenResponse? Current)
+{
+    public static MedicationResponse From(Medication m) => new(
+        m.Id, m.Name, m.Status, m.CreatedAt, m.RetiredAt,
+        m.Regimens.Where(r => r.EndedAt == null).Select(RegimenResponse.From).FirstOrDefault()
+            ?? m.Regimens.OrderByDescending(r => r.StartedAt).Select(RegimenResponse.From).FirstOrDefault());
+}
+record MedicationLogResponse(int Id, int MedicationId, string Name, DateOnly Date, MedicationTaken Taken, int? RegimenId, string? Notes);

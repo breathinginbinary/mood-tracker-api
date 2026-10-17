@@ -123,3 +123,58 @@ public class EntryFactor
     public Factor? Factor { get; set; }
     public double Value { get; set; }
 }
+
+/// <summary>Whether a medication is still being taken. Retired medications keep their full history.</summary>
+public enum MedicationStatus { Current, Retired }
+
+/// <summary>Measurement choices offered in the dosage dropdown.</summary>
+public enum DoseUnit { Mg, Mcg, G, ML, Units, Iu, Tablets, Capsules, Drops, Puffs, Patches, Percent }
+
+/// <summary>How often a dose is taken, offered in the frequency dropdown.</summary>
+public enum DoseFrequency { OnceDaily, TwiceDaily, ThreeTimesDaily, FourTimesDaily, EveryOtherDay, Weekly, AsNeeded }
+
+/// <summary>A medication the user takes. Name is free text; dose and frequency live in <see cref="MedicationRegimen"/> so changes keep history.</summary>
+public class Medication
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public MedicationStatus Status { get; set; } = MedicationStatus.Current;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>When the status last changed to Retired; null while current.</summary>
+    public DateTime? RetiredAt { get; set; }
+    public List<MedicationRegimen> Regimens { get; set; } = [];
+}
+
+/// <summary>
+/// One dose/frequency setting for a medication. Changing either closes the open row (sets <see cref="EndedAt"/>)
+/// and adds a new one, so the list of rows is the medication's dosage history.
+/// </summary>
+public class MedicationRegimen
+{
+    public int Id { get; set; }
+    public int MedicationId { get; set; }
+    public Medication? Medication { get; set; }
+    /// <summary>User-entered amount, e.g. 20 for "20 mg".</summary>
+    public double Dose { get; set; }
+    public DoseUnit Unit { get; set; }
+    public DoseFrequency Frequency { get; set; }
+    public DateTime StartedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Null for the regimen in effect now.</summary>
+    public DateTime? EndedAt { get; set; }
+}
+
+/// <summary>How well one day's doses went.</summary>
+public enum MedicationTaken { Yes, Partly, No }
+
+/// <summary>Daily record for one medication. One row per medication per date; points at the regimen in effect that day.</summary>
+public class MedicationLog
+{
+    public int Id { get; set; }
+    public int MedicationId { get; set; }
+    public Medication? Medication { get; set; }
+    public int? RegimenId { get; set; }
+    public MedicationRegimen? Regimen { get; set; }
+    public DateOnly Date { get; set; }
+    public MedicationTaken Taken { get; set; }
+    public string? Notes { get; set; }
+}

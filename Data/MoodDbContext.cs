@@ -10,6 +10,9 @@ public class MoodDbContext(DbContextOptions<MoodDbContext> options) : DbContext(
     public DbSet<SymptomItem> SymptomItems => Set<SymptomItem>();
     public DbSet<Condition> Conditions => Set<Condition>();
     public DbSet<SymptomItemCondition> SymptomItemConditions => Set<SymptomItemCondition>();
+    public DbSet<Medication> Medications => Set<Medication>();
+    public DbSet<MedicationRegimen> MedicationRegimens => Set<MedicationRegimen>();
+    public DbSet<MedicationLog> MedicationLogs => Set<MedicationLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,5 +34,15 @@ public class MoodDbContext(DbContextOptions<MoodDbContext> options) : DbContext(
         modelBuilder.Entity<SymptomItemCondition>().HasOne(ic => ic.SymptomItem).WithMany(s => s.Conditions).HasForeignKey(ic => ic.SymptomItemId);
         modelBuilder.Entity<SymptomItemCondition>().HasOne(ic => ic.Condition).WithMany().HasForeignKey(ic => ic.ConditionId);
         modelBuilder.Entity<SymptomItem>().HasIndex(s => s.Category);
+
+        modelBuilder.Entity<Medication>().HasIndex(m => m.Name).IsUnique();
+        modelBuilder.Entity<Medication>().Property(m => m.Status).HasConversion<string>();
+        modelBuilder.Entity<MedicationRegimen>().Property(r => r.Unit).HasConversion<string>();
+        modelBuilder.Entity<MedicationRegimen>().Property(r => r.Frequency).HasConversion<string>();
+        modelBuilder.Entity<MedicationRegimen>().HasOne(r => r.Medication).WithMany(m => m.Regimens).HasForeignKey(r => r.MedicationId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<MedicationLog>().Property(l => l.Taken).HasConversion<string>();
+        modelBuilder.Entity<MedicationLog>().HasIndex(l => new { l.MedicationId, l.Date }).IsUnique();
+        modelBuilder.Entity<MedicationLog>().HasOne(l => l.Medication).WithMany().HasForeignKey(l => l.MedicationId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<MedicationLog>().HasOne(l => l.Regimen).WithMany().HasForeignKey(l => l.RegimenId).OnDelete(DeleteBehavior.SetNull);
     }
 }

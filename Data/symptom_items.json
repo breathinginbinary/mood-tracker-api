@@ -1,4 +1,4 @@
-[
+﻿[
     {
         "id":  "S001",
         "label":  "Difficulty sustaining focus on a task",
@@ -7632,5 +7632,630 @@
                        ],
         "crossRefNote":  null,
         "sourceNote":  "Reverse-scored: higher is better"
+    },
+{
+        "id":  "H001",
+        "label":  "How many hours did you sleep last night?",
+        "category":  "Sleep",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  24,
+                       "step":  0.25,
+                       "unit":  "hours",
+                       "display":  "number"
+                   },
+        "polarity":  "Neutral",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  1,
+        "relatedIds":  null,
+        "crossRefNote":  "Short sleep (6 h or less) is the clearer risk; very long sleep is less certain. Time actually asleep, not time in bed. Quarter-hour steps. Ask \"Is that right?\" if under 2 or over 14.",
+        "sourceNote":  "Evidence strength: Moderate"
+    },
+    {
+        "id":  "H002",
+        "label":  "What time did you go to bed?",
+        "category":  "Sleep",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  1439,
+                       "step":  5,
+                       "unit":  "minutes after midnight",
+                       "display":  "time"
+                   },
+        "polarity":  "Neutral",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  2,
+        "relatedIds":  null,
+        "crossRefNote":  "Descriptive; the app computes day-to-day variation. Needs about 7 days of entries before showing a regularity score. Log bedtime and wake time (next item) so the app can show how much your schedule varies. Wake time may fall after midnight relative to bedtime.",
+        "sourceNote":  "Evidence strength: Limited"
+    },
+    {
+        "id":  "H002W",
+        "label":  "What time did you wake up?",
+        "category":  "Sleep",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  1439,
+                       "step":  5,
+                       "unit":  "minutes after midnight",
+                       "display":  "time"
+                   },
+        "polarity":  "Neutral",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  3,
+        "relatedIds":  null,
+        "crossRefNote":  "Descriptive; pairs with bedtime (H002). Second half of the sleep schedule spec (bedtime and wake time).",
+        "sourceNote":  "Evidence strength: Limited"
+    },
+    {
+        "id":  "H003",
+        "label":  "How many glasses of water did you drink today?",
+        "category":  "Nutrition \u0026 Hydration",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  20,
+                       "step":  1,
+                       "unit":  "glasses (about 8 oz / 250 mL)",
+                       "display":  "stepper"
+                   },
+        "polarity":  "HigherBetter",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  4,
+        "relatedIds":  null,
+        "crossRefNote":  "Plain water only. Glass size is a UI choice, not from the study. Cap at 20; no alert needed.",
+        "sourceNote":  "Evidence strength: Limited"
+    },
+    {
+        "id":  "H004",
+        "label":  "How much of today\u0027s food was whole or minimally processed?",
+        "category":  "Nutrition \u0026 Hydration",
+        "inputType":  "Radio",
+        "config":  {
+                       "options":  [
+                                       {
+                                           "value":  0,
+                                           "label":  "Mostly processed"
+                                       },
+                                       {
+                                           "value":  1,
+                                           "label":  "Mixed"
+                                       },
+                                       {
+                                           "value":  2,
+                                           "label":  "Mostly whole foods"
+                                       }
+                                   ]
+                   },
+        "polarity":  "HigherBetter",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  5,
+        "relatedIds":  null,
+        "crossRefNote":  "Whole foods: vegetables, fruit, legumes, whole grains, nuts, lean protein. A rough judgement is fine. Avoid scoring or shaming language.",
+        "sourceNote":  "Evidence strength: Moderate"
+    },
+    {
+        "id":  "H005",
+        "label":  "How many alcoholic drinks did you have today?",
+        "category":  "Substances",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  30,
+                       "step":  1,
+                       "unit":  "standard drinks",
+                       "display":  "stepper"
+                   },
+        "polarity":  "HigherWorse",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  6,
+        "relatedIds":  null,
+        "crossRefNote":  "One US standard drink is about a 12 oz beer, 5 oz wine, or 1.5 oz spirits. For 4 or more in a day, show a neutral note and support links; never block entry.",
+        "sourceNote":  "Evidence strength: Mixed"
+    },
+    {
+        "id":  "H006",
+        "label":  "How many caffeinated drinks did you have today?",
+        "category":  "Substances",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  12,
+                       "step":  1,
+                       "unit":  "drinks (coffee, tea, energy drink, soda)",
+                       "display":  "stepper"
+                   },
+        "polarity":  "HigherWorse",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  7,
+        "relatedIds":  null,
+        "crossRefNote":  "Roughly 100 mg of caffeine in a cup of coffee, less in tea or soda. Optional note above about 4 coffees (400 mg/day was the meta-analysis cut-off). Risk is for anxiety.",
+        "sourceNote":  "Evidence strength: Limited"
+    },
+    {
+        "id":  "H007",
+        "label":  "How many cigarettes (or nicotine uses) today?",
+        "category":  "Substances",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  60,
+                       "step":  1,
+                       "unit":  "cigarettes or uses",
+                       "display":  "stepper"
+                   },
+        "polarity":  "HigherWorse",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  8,
+        "relatedIds":  null,
+        "crossRefNote":  "Count cigarettes, vaping sessions, or pouches as one use each. If the user is trying to quit, show a streak of low days instead of a warning.",
+        "sourceNote":  "Evidence strength: Moderate"
+    },
+    {
+        "id":  "H008",
+        "label":  "Did you use cannabis today?",
+        "category":  "Substances",
+        "inputType":  "Radio",
+        "config":  {
+                       "options":  [
+                                       {
+                                           "value":  0,
+                                           "label":  "None"
+                                       },
+                                       {
+                                           "value":  1,
+                                           "label":  "A little"
+                                       },
+                                       {
+                                           "value":  2,
+                                           "label":  "Moderate"
+                                       },
+                                       {
+                                           "value":  3,
+                                           "label":  "A lot"
+                                       }
+                                   ]
+                   },
+        "polarity":  "HigherWorse",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  9,
+        "relatedIds":  null,
+        "crossRefNote":  "Private and non-judgemental. Includes smoking, vaping, and edibles. Treat answers as sensitive data. Risk is especially with psychosis.",
+        "sourceNote":  "Evidence strength: Moderate"
+    },
+    {
+        "id":  "H009",
+        "label":  "How many minutes did you exercise or move on purpose?",
+        "category":  "Movement \u0026 Outdoors",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  300,
+                       "step":  5,
+                       "unit":  "minutes",
+                       "display":  "duration"
+                   },
+        "polarity":  "HigherBetter",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  10,
+        "relatedIds":  null,
+        "crossRefNote":  "Walking counts. Count only intentional movement, not just being on your feet. No upper-limit evidence in the reviews.",
+        "sourceNote":  "Evidence strength: Strong"
+    },
+    {
+        "id":  "H010",
+        "label":  "What kind of exercise did you do?",
+        "category":  "Movement \u0026 Outdoors",
+        "inputType":  "Radio",
+        "config":  {
+                       "options":  [
+                                       {
+                                           "value":  0,
+                                           "label":  "None"
+                                       },
+                                       {
+                                           "value":  1,
+                                           "label":  "Walking / light"
+                                       },
+                                       {
+                                           "value":  2,
+                                           "label":  "Aerobic (run, cycle, swim)"
+                                       },
+                                       {
+                                           "value":  3,
+                                           "label":  "Strength"
+                                       },
+                                       {
+                                           "value":  4,
+                                           "label":  "Mind-body (yoga, tai chi)"
+                                       },
+                                       {
+                                           "value":  5,
+                                           "label":  "Mixed"
+                                       }
+                                   ]
+                   },
+        "polarity":  "Neutral",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  11,
+        "relatedIds":  null,
+        "crossRefNote":  "Optional. Pick the main type. Show only when exercise duration is above 0.",
+        "sourceNote":  "Evidence strength: Moderate"
+    },
+    {
+        "id":  "H011",
+        "label":  "How many minutes did you spend outside in a park, garden, trail, or other green space?",
+        "category":  "Movement \u0026 Outdoors",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  600,
+                       "step":  5,
+                       "unit":  "minutes",
+                       "display":  "duration"
+                   },
+        "polarity":  "HigherBetter",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  12,
+        "relatedIds":  null,
+        "crossRefNote":  "Nature means a natural setting such as a park, garden, trail or shoreline. The review counted 10 minutes or more.",
+        "sourceNote":  "Evidence strength: Moderate"
+    },
+    {
+        "id":  "H012",
+        "label":  "How far did you get out of the house today?",
+        "category":  "Movement \u0026 Outdoors",
+        "inputType":  "Radio",
+        "config":  {
+                       "options":  [
+                                       {
+                                           "value":  0,
+                                           "label":  "Did not go outside"
+                                       },
+                                       {
+                                           "value":  1,
+                                           "label":  "Doorstep, yard or balcony"
+                                       },
+                                       {
+                                           "value":  2,
+                                           "label":  "Walked around the block"
+                                       },
+                                       {
+                                           "value":  3,
+                                           "label":  "Went somewhere (store, appointment, visit)"
+                                       }
+                                   ]
+                   },
+        "polarity":  "HigherBetter",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  13,
+        "relatedIds":  null,
+        "crossRefNote":  "Graded on purpose so a small step counts. Do not frame \"did not go outside\" as a failure. Avoiding the outdoors out of fear is itself an anxiety symptom.",
+        "sourceNote":  "Evidence strength: Limited"
+    },
+    {
+        "id":  "H013",
+        "label":  "How many minutes were you in bright light, such as daylight outdoors or a light box, today?",
+        "category":  "Movement \u0026 Outdoors",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  240,
+                       "step":  5,
+                       "unit":  "minutes",
+                       "display":  "duration"
+                   },
+        "polarity":  "HigherBetter",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  14,
+        "relatedIds":  null,
+        "crossRefNote":  "Light-box sessions or time outside in daylight. The trials tested light-therapy devices, not ordinary daylight; morning timing probably matters most.",
+        "sourceNote":  "Evidence strength: Limited"
+    },
+    {
+        "id":  "H014",
+        "label":  "How many minutes did you meditate or do mindfulness practice?",
+        "category":  "Mind \u0026 Social",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  240,
+                       "step":  1,
+                       "unit":  "minutes",
+                       "display":  "duration"
+                   },
+        "polarity":  "HigherBetter",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  15,
+        "relatedIds":  null,
+        "crossRefNote":  "Seated meditation, guided audio, or mindful breathing all count. No established daily dose.",
+        "sourceNote":  "Evidence strength: Moderate"
+    },
+    {
+        "id":  "H015",
+        "label":  "How much time did you spend with other people today?",
+        "category":  "Mind \u0026 Social",
+        "inputType":  "Radio",
+        "config":  {
+                       "options":  [
+                                       {
+                                           "value":  0,
+                                           "label":  "None"
+                                       },
+                                       {
+                                           "value":  1,
+                                           "label":  "Brief"
+                                       },
+                                       {
+                                           "value":  2,
+                                           "label":  "Some"
+                                       },
+                                       {
+                                           "value":  3,
+                                           "label":  "A lot"
+                                       }
+                                   ]
+                   },
+        "polarity":  "HigherBetter",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  16,
+        "relatedIds":  [
+                           "S060",
+                           "B052",
+                           "AX049",
+                           "DP052"
+                       ],
+        "crossRefNote":  "Calls, video, or in person all count. Matches the \"Social interaction\" item in the condition lists.",
+        "sourceNote":  "Evidence strength: Limited"
+    },
+    {
+        "id":  "H016",
+        "label":  "How many hours of recreational screen time did you have today?",
+        "category":  "Mind \u0026 Social",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  24,
+                       "step":  0.25,
+                       "unit":  "hours",
+                       "display":  "number"
+                   },
+        "polarity":  "HigherWorse",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  17,
+        "relatedIds":  null,
+        "crossRefNote":  "TV, games, social media and streaming. Exclude work or school screens. Ask \"Is that right?\" above 16 h.",
+        "sourceNote":  "Evidence strength: Limited"
+    },
+    {
+        "id":  "H017",
+        "label":  "Did you bathe or shower today?",
+        "category":  "Hygiene \u0026 Self-care",
+        "inputType":  "Checkbox",
+        "config":  {
+                       "checkedMeans":  "Checked = did today"
+                   },
+        "polarity":  "HigherBetter",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  18,
+        "relatedIds":  null,
+        "crossRefNote":  "Any bath, shower, or full wash counts. Keep wording neutral and judgement-free. Do not show a streak counter that shames missed days. A marker, not a treatment.",
+        "sourceNote":  "Evidence strength: Limited"
+    },
+    {
+        "id":  "H018",
+        "label":  "How many minutes did you spend in a warm bath or soak?",
+        "category":  "Hygiene \u0026 Self-care",
+        "inputType":  "Number",
+        "config":  {
+                       "min":  0,
+                       "max":  120,
+                       "step":  5,
+                       "unit":  "minutes",
+                       "display":  "duration"
+                   },
+        "polarity":  "Neutral",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  19,
+        "relatedIds":  null,
+        "crossRefNote":  "Optional. Warm, not scalding. Caution: the pilot used supervised baths at about 40 C, and some people had dizziness or a racing heart. People with heart conditions or low blood pressure should check with a clinician.",
+        "sourceNote":  "Evidence strength: Limited"
+    },
+    {
+        "id":  "H019",
+        "label":  "How much basic self-care did you manage today (washing up, getting dressed, brushing teeth)?",
+        "category":  "Hygiene \u0026 Self-care",
+        "inputType":  "Radio",
+        "config":  {
+                       "options":  [
+                                       {
+                                           "value":  0,
+                                           "label":  "None"
+                                       },
+                                       {
+                                           "value":  1,
+                                           "label":  "Some"
+                                       },
+                                       {
+                                           "value":  2,
+                                           "label":  "Most"
+                                       },
+                                       {
+                                           "value":  3,
+                                           "label":  "All"
+                                       }
+                                   ]
+                   },
+        "polarity":  "HigherBetter",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  20,
+        "relatedIds":  null,
+        "crossRefNote":  "Small steps count. Complements the bathing item. A marker of functioning, not a treatment.",
+        "sourceNote":  "Evidence strength: Limited"
+    },
+    {
+        "id":  "H020",
+        "label":  "Did you take your medication as planned?",
+        "category":  "Treatment \u0026 Routine",
+        "inputType":  "Radio",
+        "config":  {
+                       "options":  [
+                                       {
+                                           "value":  0,
+                                           "label":  "Yes"
+                                       },
+                                       {
+                                           "value":  1,
+                                           "label":  "Partly"
+                                       },
+                                       {
+                                           "value":  2,
+                                           "label":  "No"
+                                       },
+                                       {
+                                           "value":  3,
+                                           "label":  "Not applicable"
+                                       }
+                                   ]
+                   },
+        "polarity":  "Neutral",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  21,
+        "relatedIds":  [
+                           "S054",
+                           "B045",
+                           "AX046",
+                           "SZ054",
+                           "DP046"
+                       ],
+        "crossRefNote":  "Only shown if the user has a medication plan. After repeated \"No\", suggest contacting the prescriber; never advise stopping or changing doses.",
+        "sourceNote":  "Evidence strength: Moderate"
+    },
+    {
+        "id":  "H021",
+        "label":  "How regular was your routine today (meals, wake and sleep times)?",
+        "category":  "Treatment \u0026 Routine",
+        "inputType":  "Radio",
+        "config":  {
+                       "options":  [
+                                       {
+                                           "value":  0,
+                                           "label":  "Not at all"
+                                       },
+                                       {
+                                           "value":  1,
+                                           "label":  "Somewhat"
+                                       },
+                                       {
+                                           "value":  2,
+                                           "label":  "Mostly"
+                                       },
+                                       {
+                                           "value":  3,
+                                           "label":  "Fully"
+                                       }
+                                   ]
+                   },
+        "polarity":  "HigherBetter",
+        "pole":  null,
+        "safetyKind":  null,
+        "conditions":  [
+                           "habits"
+                       ],
+        "sortOrder":  22,
+        "relatedIds":  [
+                           "B051",
+                           "SZ057",
+                           "DP051"
+                       ],
+        "crossRefNote":  "Same wording as the routine item in the condition lists.",
+        "sourceNote":  "Evidence strength: Limited"
     }
 ]

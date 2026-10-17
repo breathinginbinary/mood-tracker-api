@@ -3,5 +3,6 @@
   { "id": "bipolar", "name": "Bipolar disorder", "enabledByDefault": true, "sortOrder": 2 },
   { "id": "anxiety", "name": "Anxiety", "enabledByDefault": true, "sortOrder": 3 },
   { "id": "schizophrenia", "name": "Schizophrenia", "enabledByDefault": true, "sortOrder": 4 },
-  { "id": "depression", "name": "Depression", "enabledByDefault": true, "sortOrder": 5 }
+  { "id": "depression", "name": "Depression", "enabledByDefault": true, "sortOrder": 5 },
+  { "id": "habits", "name": "Daily health habits", "enabledByDefault": true, "sortOrder": 6 }
 ]

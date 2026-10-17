@@ -121,6 +121,99 @@ namespace MoodTracker.Api.Migrations
                     b.ToTable("Factors");
                 });
 
+            modelBuilder.Entity("MoodTracker.Api.Data.Medication", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RetiredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Medications");
+                });
+
+            modelBuilder.Entity("MoodTracker.Api.Data.MedicationLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MedicationId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RegimenId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Taken")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RegimenId");
+
+                    b.HasIndex("MedicationId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("MedicationLogs");
+                });
+
+            modelBuilder.Entity("MoodTracker.Api.Data.MedicationRegimen", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("Dose")
+                        .HasColumnType("REAL");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MedicationId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MedicationId");
+
+                    b.ToTable("MedicationRegimens");
+                });
+
             modelBuilder.Entity("MoodTracker.Api.Data.SymptomItem", b =>
                 {
                     b.Property<string>("Id")
@@ -205,6 +298,35 @@ namespace MoodTracker.Api.Migrations
                     b.Navigation("Factor");
                 });
 
+            modelBuilder.Entity("MoodTracker.Api.Data.MedicationLog", b =>
+                {
+                    b.HasOne("MoodTracker.Api.Data.Medication", "Medication")
+                        .WithMany()
+                        .HasForeignKey("MedicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoodTracker.Api.Data.MedicationRegimen", "Regimen")
+                        .WithMany()
+                        .HasForeignKey("RegimenId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Medication");
+
+                    b.Navigation("Regimen");
+                });
+
+            modelBuilder.Entity("MoodTracker.Api.Data.MedicationRegimen", b =>
+                {
+                    b.HasOne("MoodTracker.Api.Data.Medication", "Medication")
+                        .WithMany("Regimens")
+                        .HasForeignKey("MedicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Medication");
+                });
+
             modelBuilder.Entity("MoodTracker.Api.Data.SymptomItemCondition", b =>
                 {
                     b.HasOne("MoodTracker.Api.Data.Condition", "Condition")
@@ -227,6 +349,11 @@ namespace MoodTracker.Api.Migrations
             modelBuilder.Entity("MoodTracker.Api.Data.Entry", b =>
                 {
                     b.Navigation("Factors");
+                });
+
+            modelBuilder.Entity("MoodTracker.Api.Data.Medication", b =>
+                {
+                    b.Navigation("Regimens");
                 });
 
             modelBuilder.Entity("MoodTracker.Api.Data.SymptomItem", b =>
