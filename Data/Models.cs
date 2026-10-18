@@ -1,12 +1,32 @@
+using Microsoft.AspNetCore.Identity;
+
 namespace MoodTracker.Api.Data;
 
-/// <summary>One mood check-in. Timestamps are UTC so lagged analysis stays consistent.</summary>
-public class Entry
+/// <summary>A person who can log in. Everything they track is owned by their id.</summary>
+public class ApplicationUser : IdentityUser;
+
+/// <summary>Implemented by rows that belong to one user; <see cref="MoodDbContext"/> filters and stamps them.</summary>
+public interface IUserOwned
 {
+    string? UserId { get; set; }
+}
+
+/// <summary>One user's own on/off choice for a <see cref="Condition"/>. Without a row, the condition's <see cref="Condition.Enabled"/> default applies.</summary>
+public class UserCondition : IUserOwned
+{
+    public string? UserId { get; set; }
+    public required string ConditionId { get; set; }
+    public bool Enabled { get; set; }
+}
+
+/// <summary>One mood check-in. Timestamps are UTC so lagged analysis stays consistent.</summary>
+public class Entry : IUserOwned
+{
+    public string? UserId { get; set; }
     public int Id { get; set; }
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-    /// <summary>Mood score, 0 (lowest) to 5 (highest), matching the front end's scale.</summary>
-    public int Mood { get; set; }
+    /// <summary>Mood score, 0 (lowest) to 5 (highest). Null for days saved from the tracking pages, which do not ask for one.</summary>
+    public int? Mood { get; set; }
     public string? Notes { get; set; }
     public List<EntryFactor> Factors { get; set; } = [];
 }
@@ -37,7 +57,7 @@ public enum Polarity
 
 /// <summary>
 /// An illness the app can track items for (ADHD, bipolar disorder, ...). Seeded from Data/conditions.json;
-/// <see cref="Enabled"/> is the user's switch and is never overwritten by the seed after first insert.
+/// <see cref="Enabled"/> is the default for users who have not chosen (see <see cref="UserCondition"/>) and is never overwritten by the seed after first insert.
 /// </summary>
 public class Condition
 {
@@ -65,6 +85,8 @@ public enum SafetyKind
     SelfHarm,
     /// <summary>Unusual beliefs or perceptions, which can signal a severe episode: suggest contacting the care team.</summary>
     UnusualExperiences,
+    /// <summary>Thoughts of harming someone else: point to emergency services if anyone is in immediate danger.</summary>
+    HarmToOthers,
 }
 
 /// <summary>
@@ -96,8 +118,9 @@ public class SymptomItem
 }
 
 /// <summary>Something the user tracks: sleep hours, caffeine, a catalog symptom, etc.</summary>
-public class Factor
+public class Factor : IUserOwned
 {
+    public string? UserId { get; set; }
     public int Id { get; set; }
     public required string Name { get; set; }
     /// <summary>Optional unit, e.g. "hours" or "cups".</summary>
@@ -134,8 +157,9 @@ public enum DoseUnit { Mg, Mcg, G, ML, Units, Iu, Tablets, Capsules, Drops, Puff
 public enum DoseFrequency { OnceDaily, TwiceDaily, ThreeTimesDaily, FourTimesDaily, EveryOtherDay, Weekly, AsNeeded }
 
 /// <summary>A medication the user takes. Name is free text; dose and frequency live in <see cref="MedicationRegimen"/> so changes keep history.</summary>
-public class Medication
+public class Medication : IUserOwned
 {
+    public string? UserId { get; set; }
     public int Id { get; set; }
     public required string Name { get; set; }
     public MedicationStatus Status { get; set; } = MedicationStatus.Current;

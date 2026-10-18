@@ -1,19 +1,37 @@
 @host = http://localhost:5281
+# Paste the token returned by register/login here.
+@token = 
+
+### Register (the first account inherits any data recorded before login existed)
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{ "email": "you@example.com", "password": "a-long-passw0rd!" }
+
+### Log in
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "you@example.com", "password": "a-long-passw0rd!" }
 
 ### Create a factor
 POST {{host}}/factors
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "name": "Sleep", "unit": "hours" }
 
 ### List factors
 GET {{host}}/factors
+Authorization: Bearer {{token}}
 
 ### Log a mood entry (factorId 1 = Sleep)
 POST {{host}}/entries
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "mood": 7, "notes": "Feeling decent", "factors": [ { "factorId": 1, "value": 6.5 } ] }
 
 ### List entries
 GET {{host}}/entries
+Authorization: Bearer {{token}}

@@ -1,6 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MoodTracker.Api.Auth;
 using MoodTracker.Api.Data;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +14,40 @@ builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Ad
 
 builder.Services.AddScoped<AveragesService>();
 builder.Services.AddOpenApi();
+
+// ---- Authentication ----
+// Users register with email + password (ASP.NET Core Identity) and call the API with a JWT bearer token.
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+if (jwt.Key.Length < 32)
+    throw new InvalidOperationException("Jwt:Key must be at least 32 characters. Set it with 'dotnet user-secrets set Jwt:Key <value>' or the Jwt__Key environment variable.");
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+builder.Services.AddSingleton<TokenService>();
+builder.Services.AddIdentityCore<ApplicationUser>(o =>
+    {
+        o.User.RequireUniqueEmail = true;
+        o.Password.RequiredLength = 10;
+        o.Lockout.MaxFailedAccessAttempts = 5;
+        o.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    })
+    .AddEntityFrameworkStores<MoodDbContext>();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(o =>
+    {
+        o.MapInboundClaims = false;
+        o.TokenValidationParameters = new()
+        {
+            ValidIssuer = jwt.Issuer,
+            ValidAudience = jwt.Audience,
+            IssuerSigningKey = jwt.SigningKey,
+            ClockSkew = TimeSpan.FromMinutes(1),
+        };
+    });
+// Every endpoint needs a signed-in user unless it opts out with AllowAnonymous.
+builder.Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 builder.Services.AddDbContext<MoodDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Default")));
 
@@ -23,11 +61,15 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
 }
+
+app.MapAuth();
 
 // Create/upgrade the local SQLite file on startup.
 using (var scope = app.Services.CreateScope())
@@ -41,32 +83,40 @@ using (var scope = app.Services.CreateScope())
 // The illnesses the user has chosen to track. Turning one off hides its items from the catalog;
 // factors already being tracked, and their history, are left alone.
 app.MapGet("/conditions", async (MoodDbContext db) =>
-    await db.Conditions
+{
+    var enabled = await EnabledConditionIdsAsync(db);
+    return await db.Conditions
         .OrderBy(c => c.SortOrder)
-        .Select(c => new ConditionResponse(c.Id, c.Name, c.Enabled, db.SymptomItemConditions.Count(ic => ic.ConditionId == c.Id)))
-        .ToListAsync());
+        .Select(c => new ConditionResponse(c.Id, c.Name, enabled.Contains(c.Id), db.SymptomItemConditions.Count(ic => ic.ConditionId == c.Id)))
+        .ToListAsync();
+});
 
-app.MapPut("/conditions/{id}", async (string id, ConditionRequest req, MoodDbContext db) =>
+app.MapPut("/conditions/{id}", async (string id, ConditionRequest req, MoodDbContext db, ICurrentUser user) =>
 {
     var condition = await db.Conditions.FindAsync(id.ToLower());
     if (condition is null) return Results.NotFound();
-    condition.Enabled = req.Enabled;
+    var choice = await db.UserConditions.FirstOrDefaultAsync(c => c.ConditionId == condition.Id);
+    if (choice is null) db.UserConditions.Add(new UserCondition { UserId = user.Id, ConditionId = condition.Id, Enabled = req.Enabled });
+    else choice.Enabled = req.Enabled;
     await db.SaveChangesAsync();
     return Results.Ok(new ConditionResponse(
-        condition.Id, condition.Name, condition.Enabled,
+        condition.Id, condition.Name, req.Enabled,
         await db.SymptomItemConditions.CountAsync(ic => ic.ConditionId == condition.Id)));
 });
 
 // ---- Catalog ----
 // Items offered to the user: only those belonging to at least one enabled condition.
-IQueryable<SymptomItem> EnabledItems(MoodDbContext db) =>
-    db.SymptomItems.Where(s => s.Conditions.Any(c => c.Condition!.Enabled));
+async Task<IQueryable<SymptomItem>> EnabledItemsAsync(MoodDbContext db)
+{
+    var enabled = await EnabledConditionIdsAsync(db);
+    return db.SymptomItems.Where(s => s.Conditions.Any(c => enabled.Contains(c.ConditionId)));
+}
 
 // Browse the symptom catalog for the "add an item" dropdown. `tracked` tells the UI which items
 // the user already has active; `factorId` is set when one exists (active or archived).
 app.MapGet("/catalog", async (MoodDbContext db, string? condition, string? category, string? q) =>
 {
-    var query = EnabledItems(db);
+    var query = await EnabledItemsAsync(db);
     if (!string.IsNullOrWhiteSpace(condition))
         query = query.Where(s => s.Conditions.Any(c => c.ConditionId == condition.ToLower()));
     if (!string.IsNullOrWhiteSpace(category)) query = query.Where(s => s.Category == category);
@@ -91,7 +141,7 @@ app.MapGet("/catalog", async (MoodDbContext db, string? condition, string? categ
 
 app.MapGet("/catalog/categories", async (MoodDbContext db, string? condition) =>
 {
-    var query = EnabledItems(db);
+    var query = await EnabledItemsAsync(db);
     if (!string.IsNullOrWhiteSpace(condition))
         query = query.Where(s => s.Conditions.Any(c => c.ConditionId == condition.ToLower()));
     return await query.OrderBy(s => s.SortOrder).Select(s => s.Category).Distinct().ToListAsync();
@@ -111,7 +161,8 @@ app.MapPost("/factors/from-catalog/{symptomItemId}", async (string symptomItemId
     var item = await db.SymptomItems.Include(s => s.Conditions).ThenInclude(c => c.Condition)
         .FirstOrDefaultAsync(s => s.Id == symptomItemId);
     if (item is null) return Results.NotFound();
-    if (!item.Conditions.Any(c => c.Condition!.Enabled))
+    var enabledConditions = await EnabledConditionIdsAsync(db);
+    if (!item.Conditions.Any(c => enabledConditions.Contains(c.ConditionId)))
         return Results.BadRequest("This item belongs only to conditions that are turned off. Enable one in /conditions first.");
 
     var existing = await db.Factors.FirstOrDefaultAsync(f => f.SymptomItemId == symptomItemId);
@@ -156,7 +207,8 @@ app.MapPut("/tracking", async (TrackingRequest req, MoodDbContext db) =>
     var unknown = wanted.Except(items.Select(i => i.Id)).ToList();
     if (unknown.Count > 0)
         return Results.BadRequest($"Unknown catalog items: {string.Join(", ", unknown)}.");
-    var disabled = items.Where(i => !i.Conditions.Any(c => c.Condition!.Enabled)).Select(i => i.Id).ToList();
+    var enabledConditions = await EnabledConditionIdsAsync(db);
+    var disabled = items.Where(i => !i.Conditions.Any(c => enabledConditions.Contains(c.ConditionId))).Select(i => i.Id).ToList();
     if (disabled.Count > 0)
         return Results.BadRequest($"These items belong only to conditions that are turned off: {string.Join(", ", disabled)}.");
 
@@ -176,7 +228,7 @@ app.MapPut("/tracking", async (TrackingRequest req, MoodDbContext db) =>
 // Stop tracking without losing history. Past entries keep their values.
 app.MapPost("/factors/{id:int}/archive", async (int id, MoodDbContext db) =>
 {
-    var factor = await db.Factors.FindAsync(id);
+    var factor = await db.Factors.FirstOrDefaultAsync(f => f.Id == id);
     if (factor is null) return Results.NotFound();
     factor.ArchivedAt ??= DateTime.UtcNow;
     await db.SaveChangesAsync();
@@ -185,7 +237,7 @@ app.MapPost("/factors/{id:int}/archive", async (int id, MoodDbContext db) =>
 
 app.MapPost("/factors/{id:int}/unarchive", async (int id, MoodDbContext db) =>
 {
-    var factor = await db.Factors.FindAsync(id);
+    var factor = await db.Factors.FirstOrDefaultAsync(f => f.Id == id);
     if (factor is null) return Results.NotFound();
     factor.ArchivedAt = null;
     await db.SaveChangesAsync();
@@ -209,7 +261,7 @@ app.MapPut("/factors/{id:int}", async (int id, FactorRequest req, MoodDbContext 
 {
     if (string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest("Name is required.");
-    var factor = await db.Factors.FindAsync(id);
+    var factor = await db.Factors.FirstOrDefaultAsync(f => f.Id == id);
     if (factor is null) return Results.NotFound();
 
     var name = req.Name.Trim();
@@ -393,32 +445,9 @@ app.MapPost("/entries", async (EntryRequest req, MoodDbContext db) =>
         return Results.BadRequest("Mood must be between 0 and 5.");
 
     var factorValues = req.Factors ?? [];
-    var factorIds = factorValues.Select(f => f.FactorId).Distinct().ToList();
-    if (factorIds.Count != factorValues.Count)
-        return Results.BadRequest("Each factor can only appear once per entry.");
-    var factors = await db.Factors.Where(f => factorIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id);
-    if (factors.Count != factorIds.Count)
-        return Results.BadRequest("One or more factorIds do not exist.");
-
-    var errors = new List<string>();
-    foreach (var fv in factorValues)
-    {
-        var factor = factors[fv.FactorId];
-        if (factor.ArchivedAt is not null)
-            errors.Add($"'{factor.Name}' is archived. Unarchive it to record new values.");
-        else if (ValueValidator.Validate(factor, fv.Value) is { } error)
-            errors.Add(error);
-    }
-    if (errors.Count > 0)
-        return Results.BadRequest(errors);
-
-    // A positive answer on a safety item should surface an alert (crisis resources, or a prompt to contact the care team).
-    var alerts = factorValues
-        .Where(fv => fv.Value > 0 && factors[fv.FactorId].SafetyKind is not null)
-        .Select(fv => factors[fv.FactorId].SafetyKind!.Value)
-        .Distinct()
-        .Select(SafetyAlert.For)
-        .ToList();
+    var (factors, invalid) = await CheckValuesAsync(db, factorValues, f => f.ArchivedAt is null);
+    if (invalid is not null) return invalid;
+    var alerts = AlertsFor(factorValues, factors);
 
     var entry = new Entry
     {
@@ -439,6 +468,68 @@ app.MapDelete("/entries/{id:int}", async (int id, MoodDbContext db) =>
     return deleted == 0 ? Results.NotFound() : Results.NoContent();
 });
 
+// ---- Days ----
+// A calendar day as one set of values, for the history and tracking pages. Dates are UTC calendar dates
+// (what the front end sends as the user's local date), the same days the averages use. A day shows the
+// latest value of each factor recorded on it; saving a day replaces everything recorded on it.
+app.MapGet("/days", async (MoodDbContext db, DateOnly? from, DateOnly? to) =>
+{
+    var query = db.Entries.AsQueryable();
+    if (from is { } f) { var start = f.ToDateTime(TimeOnly.MinValue); query = query.Where(e => e.Timestamp >= start); }
+    if (to is { } t) { var end = t.AddDays(1).ToDateTime(TimeOnly.MinValue); query = query.Where(e => e.Timestamp < end); }
+
+    var entries = await query
+        .Include(e => e.Factors).ThenInclude(ef => ef.Factor)
+        .OrderBy(e => e.Timestamp)
+        .ToListAsync();
+    var categories = await CategoriesAsync(db, entries.SelectMany(e => e.Factors).Select(ef => ef.Factor!));
+
+    return Results.Ok(entries
+        .GroupBy(e => DateOnly.FromDateTime(e.Timestamp))
+        .Select(g =>
+        {
+            // Entries are oldest first, so the last value written for a factor is the latest.
+            var latest = new Dictionary<int, EntryFactor>();
+            foreach (var ef in g.SelectMany(e => e.Factors)) latest[ef.FactorId] = ef;
+            return new DayResponse(g.Key, latest.Values
+                .Select(ef => DayFactorResponse.From(ef.Factor!, ef.Value, categories))
+                .OrderBy(x => x.Category).ThenBy(x => x.Name).ToList());
+        })
+        .ToList());
+});
+
+app.MapPut("/days/{date}", async (DateOnly date, DayRequest req, MoodDbContext db) =>
+{
+    var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+    var end = start.AddDays(1);
+    var existing = await db.Entries.Where(e => e.Timestamp >= start && e.Timestamp < end)
+        .SelectMany(e => e.Factors).Select(ef => ef.FactorId).Distinct().ToListAsync();
+
+    var factorValues = req.Factors ?? [];
+    // A factor archived since this day was logged can keep the value it already has.
+    var (factors, invalid) = await CheckValuesAsync(db, factorValues, f => f.ArchivedAt is null || existing.Contains(f.Id));
+    if (invalid is not null) return invalid;
+
+    await using var tx = await db.Database.BeginTransactionAsync();
+    await db.Entries.Where(e => e.Timestamp >= start && e.Timestamp < end).ExecuteDeleteAsync();
+    db.Entries.Add(new Entry
+    {
+        Timestamp = start.AddHours(12),
+        Factors = factorValues.Select(f => new EntryFactor { FactorId = f.FactorId, Value = f.Value }).ToList()
+    });
+    await db.SaveChangesAsync();
+    await tx.CommitAsync();
+    return Results.Ok(new { Alerts = AlertsFor(factorValues, factors) });
+});
+
+app.MapDelete("/days/{date}", async (DateOnly date, MoodDbContext db) =>
+{
+    var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+    var end = start.AddDays(1);
+    var deleted = await db.Entries.Where(e => e.Timestamp >= start && e.Timestamp < end).ExecuteDeleteAsync();
+    return deleted == 0 ? Results.NotFound() : Results.NoContent();
+});
+
 // ---- Averages ----
 // Per-factor summary of the last 7, 30 or 90 days, or 0 for all time (the Angular "averages" page).
 app.MapGet("/averages/{days:int}", async (int days, AveragesService averages, CancellationToken ct) =>
@@ -455,6 +546,53 @@ app.MapGet("/averages", async (DateOnly? from, DateOnly? to, AveragesService ave
 });
 
 app.Run();
+
+// Ids of the conditions this user has turned on: their own choice, else the condition's default.
+static async Task<HashSet<string>> EnabledConditionIdsAsync(MoodDbContext db)
+{
+    var chosen = await db.UserConditions.ToDictionaryAsync(c => c.ConditionId, c => c.Enabled);
+    var conditions = await db.Conditions.ToListAsync();
+    return conditions.Where(c => chosen.GetValueOrDefault(c.Id, c.Enabled)).Select(c => c.Id).ToHashSet();
+}
+
+// Loads the factors a set of values refers to and checks each value. `mayRecord` says whether a factor
+// accepts a value right now. Returns the error response to send back, or null when everything is fine.
+static async Task<(Dictionary<int, Factor> Factors, IResult? Error)> CheckValuesAsync(
+    MoodDbContext db, List<FactorValueRequest> values, Func<Factor, bool> mayRecord)
+{
+    var ids = values.Select(f => f.FactorId).Distinct().ToList();
+    if (ids.Count != values.Count)
+        return ([], Results.BadRequest("Each factor can only appear once per entry."));
+    var factors = await db.Factors.Where(f => ids.Contains(f.Id)).ToDictionaryAsync(f => f.Id);
+    if (factors.Count != ids.Count)
+        return (factors, Results.BadRequest("One or more factorIds do not exist."));
+
+    var errors = new List<string>();
+    foreach (var fv in values)
+    {
+        var factor = factors[fv.FactorId];
+        if (!mayRecord(factor))
+            errors.Add($"'{factor.Name}' is archived. Unarchive it to record new values.");
+        else if (ValueValidator.Validate(factor, fv.Value) is { } error)
+            errors.Add(error);
+    }
+    return (factors, errors.Count > 0 ? Results.BadRequest(errors) : null);
+}
+
+// A positive answer on a safety item should surface an alert (crisis resources, or a prompt to contact the care team).
+static List<SafetyAlert> AlertsFor(List<FactorValueRequest> values, Dictionary<int, Factor> factors) => values
+    .Where(fv => fv.Value > 0 && factors[fv.FactorId].SafetyKind is not null)
+    .Select(fv => factors[fv.FactorId].SafetyKind!.Value)
+    .Distinct()
+    .Select(SafetyAlert.For)
+    .ToList();
+
+// Category of each catalog-backed factor, keyed by symptom item id. Custom factors have none.
+static async Task<Dictionary<string, string>> CategoriesAsync(MoodDbContext db, IEnumerable<Factor> factors)
+{
+    var ids = factors.Select(f => f.SymptomItemId).OfType<string>().Distinct().ToList();
+    return await db.SymptomItems.Where(s => ids.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Category);
+}
 
 // Starts tracking a catalog item: restores its archived factor (history intact) or creates a new one.
 // Saves immediately so the name-collision check below sees factors created earlier in the same batch.
@@ -499,6 +637,16 @@ record ConditionResponse(string Id, string Name, bool Enabled, int ItemCount);
 record FactorRequest(string Name, string? Unit);
 record FactorValueRequest(int FactorId, double Value);
 record EntryRequest(int Mood, DateTime? Timestamp, string? Notes, List<FactorValueRequest>? Factors);
+record DayRequest(List<FactorValueRequest>? Factors);
+record DayFactorResponse(
+    int FactorId, string Name, string? Unit, string Category, InputType InputType, JsonElement? Config, double Value)
+{
+    public static DayFactorResponse From(Factor f, double value, Dictionary<string, string> categories) => new(
+        f.Id, f.Name, f.Unit,
+        f.SymptomItemId is not null && categories.TryGetValue(f.SymptomItemId, out var c) ? c : "Custom",
+        f.InputType, f.ConfigJson is null ? null : JsonSerializer.Deserialize<JsonElement>(f.ConfigJson), value);
+}
+record DayResponse(DateOnly Date, List<DayFactorResponse> Factors);
 record FactorValueResponse(int FactorId, string Name, string? Unit, double Value);
 /// <summary>An alert for the front end to show. <c>Phone</c> is set only when there is a number to call or text.</summary>
 record SafetyAlert(SafetyKind Kind, string Message, string? Phone)
@@ -511,6 +659,9 @@ record SafetyAlert(SafetyKind Kind, string Message, string? Phone)
         SafetyKind.UnusualExperiences => new(kind,
             "Unusual beliefs or experiences can be a sign of a severe episode. Consider contacting your care team soon.",
             null),
+        SafetyKind.HarmToOthers => new(kind,
+            "Having thoughts of harming someone else can be frightening, and help is available. If anyone is in immediate danger, call 911 (US) now. Otherwise, please contact your care team soon, or call or text 988 to talk it through.",
+            "911"),
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 }
@@ -518,7 +669,7 @@ record CatalogItemResponse(
     string Id, string Label, string Category, InputType InputType, JsonElement Config,
     Polarity Polarity, string? Pole, SafetyKind? SafetyKind, string[] Conditions, string[] RelatedIds,
     string? CrossRefNote, string? SourceNote, bool Tracked, int? FactorId);
-record EntryResponse(int Id, DateTime Timestamp, int Mood, string? Notes, List<FactorValueResponse> Factors);
+record EntryResponse(int Id, DateTime Timestamp, int? Mood, string? Notes, List<FactorValueResponse> Factors);
 
 record MedicationRequest(string? Name, double? Dose, DoseUnit? Unit, DoseFrequency? Frequency)
 {
